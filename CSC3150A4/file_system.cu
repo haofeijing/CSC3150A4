@@ -45,7 +45,8 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 	//printf("\n");
 
 	// find existed file
-	for (int i = fs->SUPERBLOCK_SIZE; i < fs->SUPERBLOCK_SIZE + fs->FCB_ENTRIES * fs->FCB_SIZE; i + fs->FCB_SIZE) {
+	int i = fs->SUPERBLOCK_SIZE;
+	while (i < fs->SUPERBLOCK_SIZE + fs->FCB_ENTRIES * fs->FCB_SIZE) {
 		char tmp = *s;
 		int j = 0;
 		bool flag = true;
@@ -61,6 +62,9 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 			}
 		}
 		if (flag == false) {
+			printf("this block = %d\n", i);
+			printf("not find in this block\n");
+			i += fs->FCB_SIZE;
 			continue;
 		}
 		else
