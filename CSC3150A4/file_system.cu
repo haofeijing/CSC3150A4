@@ -33,6 +33,41 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
 __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 {
 	/* Implement open operation here */
+
+	// get file name
+	//int i = 0;
+	//char tmp = *s;
+	//while (tmp != '\0') {
+	//	printf("%c", tmp);
+	//	i++;
+	//	tmp = *(s + i);
+	//}
+	//printf("\n");
+
+	// find existed file
+	for (int i = fs->SUPERBLOCK_SIZE; i < fs->SUPERBLOCK_SIZE + fs->FCB_ENTRIES * fs->FCB_SIZE; i + fs->FCB_SIZE) {
+		char tmp = *s;
+		int j = 0;
+		bool flag = true;
+		while (tmp != '\0') {
+			if (fs->volume[i + j] != tmp) {
+				flag = false;
+				break;
+			}
+			else
+			{
+				j++;
+				tmp = *(s + j);
+			}
+		}
+		if (flag == false) {
+			continue;
+		}
+		else
+		{
+			return fs->volume[i + j + 1]; // return pointer
+		}
+	}
 }
 
 
