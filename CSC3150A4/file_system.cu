@@ -46,10 +46,25 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 
 	// find existed file
 	int i = fs->SUPERBLOCK_SIZE;
+	bool find = false;
+	int empty_entry = -1;
+	char tmp;
+	int j;
+	int idx;
+	bool flag;
 	while (i < fs->SUPERBLOCK_SIZE + fs->FCB_ENTRIES * fs->FCB_SIZE) {
-		char tmp = *s;
-		int j = 0;
-		bool flag = true;
+		idx = (i - fs->SUPERBLOCK_SIZE) / fs->FCB_SIZE;
+		if (fs->volume[idx] != 1) {
+			// record empty entry;
+			if (empty_entry == -1) {
+				emtpry_entry = idx;
+			} 
+			i += fs->FCB_SIZE;
+			continue; // skip empty entry
+		}
+		tmp = *s;
+		j = 0;
+		flag = true;
 		while (tmp != '\0') {
 			if (fs->volume[i + j] != tmp) {
 				flag = false;
@@ -61,7 +76,7 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 				tmp = *(s + j);
 			}
 		}
-		if (flag == false) {
+		if (!flag) {
 			printf("this block = %d\n", i);
 			printf("not find in this block\n");
 			i += fs->FCB_SIZE;
@@ -69,8 +84,36 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 		}
 		else
 		{
-			return fs->volume[i + j + 1]; // return pointer
+			find = true;
+			// return pointer, i.e. current entry since we have 1024 blocks for 1024 files.
+			// We allocate 32 blocks for each file.
+			return fs->FILE_BASE_ADDRESS + idx * (fs->STORAGE_BLOCK_SIZE * 32); 
+			
 		}
+	}
+	if (!find) {
+		if (op == G_READ) {
+			printf("ERROR: no such file.\n");
+			return 0;
+		} else if (op == G_WRITE) {
+			fs->volume[empty] = 1; // change status of FCB in super block
+			// write file name in FCB
+			tmp = *s;
+			j = 0;
+			while (tmp != '\0') {
+				fs->volume[fs->SUPERBLOCK_SIZE + empty * fs->FCB_SIZE + j] = tmp;
+				j++;
+				tmp = *(s + j);
+			}
+			return fs->FILE_BASE_ADDRESS + empty * (fs->STORAGE_BLOCK_SIZE * 32);
+			
+
+		} else {
+			printf("ERROR: invalid operation.\n");
+			return 0;
+		}
+		
+
 	}
 }
 
@@ -83,6 +126,8 @@ __device__ void fs_read(FileSystem *fs, uchar *output, u32 size, u32 fp)
 __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fp)
 {
 	/* Implement write operation here */
+	
+
 }
 __device__ void fs_gsys(FileSystem *fs, int op)
 {
