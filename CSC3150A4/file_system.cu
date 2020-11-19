@@ -34,15 +34,6 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 {
 	/* Implement open operation here */
 
-	// get file name
-	//int i = 0;
-	//char tmp = *s;
-	//while (tmp != '\0') {
-	//	printf("%c", tmp);
-	//	i++;
-	//	tmp = *(s + i);
-	//}
-	//printf("\n");
 
 	// find existed file
 	int i = fs->SUPERBLOCK_SIZE;
@@ -57,7 +48,7 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 		if (fs->volume[idx] != 1) {
 			// record empty entry;
 			if (empty_entry == -1) {
-				emtpry_entry = idx;
+				empty_entry = idx;
 			} 
 			i += fs->FCB_SIZE;
 			continue; // skip empty entry
@@ -85,27 +76,42 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 		else
 		{
 			find = true;
+			// change modified time
+			int modify_idx = fs->SUPERBLOCK_SIZE + idx * fs->FCB_SIZE + fs->MAX_FILENAME_SIZE;
+			for (int k = 0; k < 4; k++) {
+				fs->volume[create_idx + k + 4] = (gtime >> (k * 8)) & 0xff;
+			}
+			gtime++;
 			// return pointer, i.e. current entry since we have 1024 blocks for 1024 files.
 			// We allocate 32 blocks for each file.
 			return fs->FILE_BASE_ADDRESS + idx * (fs->STORAGE_BLOCK_SIZE * 32); 
 			
 		}
 	}
+	// not find
 	if (!find) {
 		if (op == G_READ) {
 			printf("ERROR: no such file.\n");
 			return 0;
 		} else if (op == G_WRITE) {
-			fs->volume[empty] = 1; // change status of FCB in super block
+			fs->volume[empty_entry] = 1; // change status of FCB in super block
 			// write file name in FCB
 			tmp = *s;
 			j = 0;
 			while (tmp != '\0') {
-				fs->volume[fs->SUPERBLOCK_SIZE + empty * fs->FCB_SIZE + j] = tmp;
+				fs->volume[fs->SUPERBLOCK_SIZE + empty_entry * fs->FCB_SIZE + j] = tmp;
 				j++;
 				tmp = *(s + j);
 			}
-			return fs->FILE_BASE_ADDRESS + empty * (fs->STORAGE_BLOCK_SIZE * 32);
+			// add create time and modified time
+			int create_idx = fs->SUPERBLOCK_SIZE + empty_entry * fs->FCB_SIZE + fs->MAX_FILENAME_SIZE;
+			for (int k = 0; k < 4; k++) {
+				fs->volume[create_idx + k] = (gtime >> (k * 8)) & 0xff;
+				fs->volume[create_idx + k + 4] = (gtime >> (k * 8)) & 0xff;
+			}
+			gtime++;
+			
+			return fs->FILE_BASE_ADDRESS + empty_entry * (fs->STORAGE_BLOCK_SIZE * 32);
 			
 
 		} else {
@@ -121,20 +127,69 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 __device__ void fs_read(FileSystem *fs, uchar *output, u32 size, u32 fp)
 {
 	/* Implement read operation here */
+	for (int i = fp; i < fp + size; i++) {
+		*(output + i) = fs->volume[i];
+	}
 }
 
 __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fp)
 {
 	/* Implement write operation here */
-	
+	for (int i = fp; i < fp + size; i++) {
+		fs->volume[i] = *(input + i);
+	}
+	return 0;
 
 }
 __device__ void fs_gsys(FileSystem *fs, int op)
 {
 	/* Implement LS_D and LS_S operation here */
+
 }
 
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
 {
 	/* Implement rm operation here */
+	if (op != RM) {
+		printf("ERROR: not valid operation");
+		return;
+	}
+	int i = fs->SUPERBLOCK_SIZE;
+	bool find = false;
+	char tmp;
+	int j;
+	int idx;
+	bool flag;
+	while (i < fs->SUPERBLOCK_SIZE + fs->FCB_ENTRIES * fs->FCB_SIZE) {
+		idx = (i - fs->SUPERBLOCK_SIZE) / fs->FCB_SIZE;
+		if (fs->volume[idx] != 1) {
+			i += fs->FCB_SIZE;
+			continue; // skip empty entry
+		}
+		tmp = *s;
+		j = 0;
+		flag = true;
+		while (tmp != '\0') {
+			if (fs->volume[i + j] != tmp) {
+				flag = false;
+				break;
+			}
+			else
+			{
+				j++;
+				tmp = *(s + j);
+			}
+		}
+		if (!flag) {
+			printf("this block = %d\n", i);
+			printf("not find in this block\n");
+			i += fs->FCB_SIZE;
+			continue;
+		}
+		else
+		{
+			find = true;
+			fs->volume[idx] = 0;
+		}
+	}
 }
