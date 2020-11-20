@@ -68,8 +68,8 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 			}
 		}
 		if (!flag) {
-			printf("this block = %d\n", i);
-			printf("not find in this block\n");
+			//printf("this block = %d\n", i);
+			//printf("not find in this block\n");
 			i += fs->FCB_SIZE;
 			continue;
 		}
@@ -79,7 +79,7 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 			// change modified time
 			int modify_idx = fs->SUPERBLOCK_SIZE + idx * fs->FCB_SIZE + fs->MAX_FILENAME_SIZE;
 			for (int k = 0; k < 4; k++) {
-				fs->volume[create_idx + k + 4] = (gtime >> (k * 8)) & 0xff;
+				fs->volume[modify_idx + k + 4] = (gtime >> (k * 8)) & 0xff;
 			}
 			gtime++;
 			// return pointer, i.e. current entry since we have 1024 blocks for 1024 files.
@@ -110,6 +110,7 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 			for (int k = 0; k < 4; k++) {
 				fs->volume[create_idx + k] = (gtime >> (k * 8)) & 0xff;
 				fs->volume[create_idx + k + 4] = (gtime >> (k * 8)) & 0xff;
+				fs->volume[create_idx + k + 8] = (0 >> (k * 8)) & 0xff;
 			}
 			gtime++;
 			
@@ -153,21 +154,106 @@ __device__ void fs_gsys(FileSystem *fs, int op)
 	/* Implement LS_D and LS_S operation here */
 	if (op == LS_D) {
 		printf("===sort by modified time===\n");
+		int tmax = 9999;
+		for (int t = 0; t < fs->FCB_ENTRIES; t++) {
+			if (fs->volume[t] != 1) {
+				continue;
+			}
+			int tmpmax = -1;
+			int argmax;
+			for (int i = 0; i < fs->FCB_ENTRIES; i++) {
+				if (fs->volume[i] == 1) {
+
+					int idx = fs->SUPERBLOCK_SIZE + i * fs->FCB_SIZE;
+
+
+					int created_time = 0;
+					int modified_time = 0;
+					int size = 0;
+					for (int k = 0; k < 4; k++) {
+						created_time += fs->volume[idx + fs->MAX_FILENAME_SIZE + k] << (k * 8);
+						modified_time += fs->volume[idx + fs->MAX_FILENAME_SIZE + k + 4] << (k * 8);
+						size += fs->volume[idx + fs->MAX_FILENAME_SIZE + k + 8] << (k * 8);
+					}
+					if (tmpmax < modified_time && modified_time < tmax) {
+						tmpmax = modified_time;
+						argmax = idx;
+					}
+				}
+			}
+			int j = 0;
+			while (fs->volume[argmax + j] != '\0') {
+				printf("%c", fs->volume[argmax + j]);
+				j++;
+			}
+			printf("\n", tmpmax);
+			tmax = tmpmax;
+		}
 	} else if (op == LS_S) {
 		printf("===sort by file size===\n");
+		int tmax = 9999;
+		int lasttime = -1;
+		for (int t = 0; t < fs->FCB_ENTRIES; t++) {
+			if (fs->volume[t] != 1) {
+				continue;
+			}
+			int tmpmax = -1;
+			int argmax;
+			int tmptime = -1;
+			for (int i = 0; i < fs->FCB_ENTRIES; i++) {
+				if (fs->volume[i] == 1) {
+
+					int idx = fs->SUPERBLOCK_SIZE + i * fs->FCB_SIZE;
+
+
+					int created_time = 0;
+					int modified_time = 0;
+					int size = 0;
+					for (int k = 0; k < 4; k++) {
+						created_time += fs->volume[idx + fs->MAX_FILENAME_SIZE + k] << (k * 8);
+						modified_time += fs->volume[idx + fs->MAX_FILENAME_SIZE + k + 4] << (k * 8);
+						size += fs->volume[idx + fs->MAX_FILENAME_SIZE + k + 8] << (k * 8);
+					}
+					if (size > tmpmax) {
+						if (size < tmax) {
+							tmpmax = size;
+							argmax = idx;
+							tmptime = created_time;
+						}
+						else if (size == tmax) {
+							if (created_time > lasttime) {
+								tmpmax = size;
+								argmax = idx;
+								tmptime = created_time;
+							}
+						}
+					}
+					else if (size == tmpmax) {
+						if (created_time < tmptime) {
+							tmpmax = size;
+							argmax = idx;
+							tmptime = created_time;
+						}
+					}
+
+				}
+			}
+			int j = 0;
+			while (fs->volume[argmax + j] != '\0') {
+				printf("%c", fs->volume[argmax + j]);
+				j++;
+			}
+			printf(" %d\n", tmpmax);
+			tmax = tmpmax;
+			lasttime = tmptime; 
+
+		}
 	} else {
 		printf("ERROR: invalid operation\n");
+		return;
 	}
-	for (int i = 0; i < fs->FCB_ENTRIES; i++) {
-		if (fs->volume[i] == 1) {
-			int j = 0;
-			int idx = fs->SUPERBLOCK_SIZE + i * fs->FCB_SIZE;
-			while (fs->volume[idx + j] != '\0') {
-				printf("%c", fs->volume[idx + j]);
-			}
-			printf("\n");
-		}
-	}
+
+
 }
 
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
@@ -204,8 +290,8 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
 			}
 		}
 		if (!flag) {
-			printf("this block = %d\n", i);
-			printf("not find in this block\n");
+			//printf("this block = %d\n", i);
+			//printf("not find in this block\n");
 			i += fs->FCB_SIZE;
 			continue;
 		}

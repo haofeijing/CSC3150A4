@@ -86,6 +86,7 @@
   <ItemGroup>
     <None Include=".DS_Store" />
     <None Include="data.bin" />
+    <None Include="snapshot.bin" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="file_system.h" />
