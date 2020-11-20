@@ -103,6 +103,8 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 				j++;
 				tmp = *(s + j);
 			}
+			fs->volume[fs->SUPERBLOCK_SIZE + empty_entry * fs->FCB_SIZE + j] = tmp;
+
 			// add create time and modified time
 			int create_idx = fs->SUPERBLOCK_SIZE + empty_entry * fs->FCB_SIZE + fs->MAX_FILENAME_SIZE;
 			for (int k = 0; k < 4; k++) {
@@ -138,13 +140,34 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fp)
 	for (int i = fp; i < fp + size; i++) {
 		fs->volume[i] = *(input + i);
 	}
+	// Record size of the file in FCB
+	int FCB_idx = ((fp - fs->FILE_BASE_ADDRESS) / (fs->STORAGE_BLOCK_SIZE * 32)) * fs->FCB_SIZE + fs->SUPERBLOCK_SIZE;
+	for (int k = 0; k < 4; k++) {
+		fs->volume[FCB_idx + fs->MAX_FILENAME_SIZE + k + 8] = (size >> (k * 8)) & 0xff;
+	}
 	return 0;
 
 }
 __device__ void fs_gsys(FileSystem *fs, int op)
 {
 	/* Implement LS_D and LS_S operation here */
-
+	if (op == LS_D) {
+		printf("===sort by modified time===\n");
+	} else if (op == LS_S) {
+		printf("===sort by file size===\n");
+	} else {
+		printf("ERROR: invalid operation\n");
+	}
+	for (int i = 0; i < fs->FCB_ENTRIES; i++) {
+		if (fs->volume[i] == 1) {
+			int j = 0;
+			int idx = fs->SUPERBLOCK_SIZE + i * fs->FCB_SIZE;
+			while (fs->volume[idx + j] != '\0') {
+				printf("%c", fs->volume[idx + j]);
+			}
+			printf("\n");
+		}
+	}
 }
 
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
